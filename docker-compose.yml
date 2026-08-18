@@ -1,0 +1,77 @@
+x-common:
+  database:
+    &db-environment
+    # Ganti password database sesuai kebutuhan
+    MYSQL_PASSWORD: &db-password "PterodactylDbPassSecret123!"
+    MYSQL_ROOT_PASSWORD: "RootDbPassSecret123!"
+  panel:
+    &panel-environment
+    # URL panel di localhost dengan port 8080
+    APP_URL: "http://localhost:8080"
+    SANCTUM_STATEFUL_DOMAINS: "localhost:8080,127.0.0.1:8080,localhost,127.0.0.1"
+    SESSION_SECURE_COOKIE: "false"
+    RECAPTCHA_ENABLED: "false"
+    # Timezone: https://www.php.net/manual/en/timezones.php (contoh: Asia/Jakarta)
+    APP_TIMEZONE: "Asia/Jakarta"
+    APP_SERVICE_AUTHOR: "admin@example.com"
+    TRUSTED_PROXIES: "*" # IP proxy / reverse proxy (gunakan "*" jika lokal/cloudflare)
+    # Uncomment jika menggunakan Let's Encrypt untuk SSL otomatis
+    # LE_EMAIL: "admin@example.com"
+  mail:
+    &mail-environment
+    MAIL_FROM: "noreply@example.com"
+    MAIL_DRIVER: "log"
+    MAIL_HOST: "mail"
+    MAIL_PORT: "1025"
+    MAIL_USERNAME: ""
+    MAIL_PASSWORD: ""
+    MAIL_ENCRYPTION: "true"
+
+services:
+  database:
+    image: mariadb:10.5
+    restart: always
+    command: --default-authentication-plugin=mysql_native_password
+    volumes:
+      - "./data/database:/var/lib/mysql"
+    environment:
+      <<: *db-environment
+      MYSQL_DATABASE: "panel"
+      MYSQL_USER: "pterodactyl"
+
+  cache:
+    image: redis:alpine
+    restart: always
+
+  panel:
+    image: ghcr.io/pterodactyl/panel:latest
+    restart: always
+    ports:
+      - "8080:80"
+      - "8443:443"
+    links:
+      - database
+      - cache
+    volumes:
+      - "./data/var/:/app/var/"
+      - "./data/nginx/:/etc/nginx/http.d/"
+      - "./data/certs/:/etc/letsencrypt/"
+      - "./data/logs/:/app/storage/logs"
+      - "./config/disable-ssl.cnf:/etc/my.cnf.d/disable-ssl.cnf:ro"
+    environment:
+      <<: [*panel-environment, *mail-environment]
+      DB_PASSWORD: *db-password
+      APP_ENV: "production"
+      APP_ENVIRONMENT_ONLY: "false"
+      CACHE_DRIVER: "redis"
+      SESSION_DRIVER: "redis"
+      QUEUE_DRIVER: "redis"
+      REDIS_HOST: "cache"
+      DB_HOST: "database"
+      DB_PORT: "3306"
+
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
