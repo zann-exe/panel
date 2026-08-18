@@ -4,7 +4,7 @@ echo   Pterodactyl Panel Localhost
 echo ==============================================
 echo.
 
-wsl -d Ubuntu-22.04 -u root -- /bin/bash -c "service docker start > /dev/null 2>&1"
+wsl -d Ubuntu-22.04 -u root -- /bin/bash -c "service docker start > /dev/null 2>&1; systemctl start wings > /dev/null 2>&1"
 wsl -d Ubuntu-22.04 -- /bin/bash -c "cd /mnt/d/Nev/panpan && docker compose up -d"
 
 echo.
