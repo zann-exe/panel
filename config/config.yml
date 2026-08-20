@@ -1,0 +1,31 @@
+debug: false
+api:
+  host: 0.0.0.0
+  port: 8080
+  ssl:
+    enabled: false
+    cert: /etc/pterodactyl/cert.pem
+    key: /etc/pterodactyl/key.pem
+  upload_limit: 100
+  token: "W1luVDhLYUQ3MDhDR2hVVE5SaXZTSGNoMVV3Y0ZLWkVleWtYUEdCdjR5MHhYQktySFFuMmtMUktSdE1NOHNPOVNJZTNXa0Uwa2VKZU51MDliaWk4NjdzenEzMUFoQm9Eb3ZWbHRvc1R1ZWs9"
+  panel_url: http://localhost:8080
+system:
+  username: pterodactyl
+  timezone: Asia/Jakarta
+  root_directory: /var/lib/pterodactyl/volumes
+  sftp:
+    port: 2022
+docker:
+  network:
+    interface: 172.18.0.1
+    name: pterodactyl_n0
+  user: 1000
+  timezone: Asia/Jakarta
+  container_pid_limit: 512
+  interface: 172.18.0.1
+  logs:
+    driver: json-file
+    options:
+      max-size: 5m
+      max-file: 2
+  tmpfs_size: 100

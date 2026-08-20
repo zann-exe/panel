@@ -1,0 +1,8 @@
+#!/bin/bash
+yes
+adminuser
+admin@example.com
+admin
+user
+Admin@123
+Admin@123

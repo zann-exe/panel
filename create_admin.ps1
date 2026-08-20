@@ -1,0 +1,2 @@
+# PowerShell script to create admin user interactively
+$process = Start-Process -FilePath "docker" -ArgumentList "compose", "exec", "-T", "panel", "php", "artisan", "p:user:make" -WorkingDirectory "D:\Nevnev\Panpan\panel" -NoNewWindow -Wait -PassThru -RedirectStandardInput "D:\Nevnev\Panpan\panel\user_input.txt"

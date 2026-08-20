@@ -1,18 +1,26 @@
 @echo off
-echo ==============================================
+title Pterodactyl Panel Localhost
+echo ========================================================
 echo   Pterodactyl Panel Localhost
-echo ==============================================
+echo ========================================================
 echo.
+echo Menyalakan Docker Service & Wings Daemon di WSL...
+wsl -d Ubuntu -u root -- /bin/bash -c "service docker start > /dev/null 2>&1; systemctl start wings > /dev/null 2>&1"
 
-wsl -d Ubuntu-22.04 -u root -- /bin/bash -c "service docker start > /dev/null 2>&1; systemctl start wings > /dev/null 2>&1"
-wsl -d Ubuntu-22.04 -- /bin/bash -c "cd /mnt/d/Nev/panpan && docker compose up -d"
+echo Menjalankan Container Pterodactyl Panel...
+wsl -d Ubuntu -u root -- /bin/bash -c "cd /mnt/d/Nevnev/Panpan/panel && docker compose up -d"
 
 echo.
-echo ==============================================
+echo ========================================================
 echo   Panel aktif di: http://localhost:8080
-echo   (Biarkan jendela ini terbuka agar service tetap aktif)
-echo ==============================================
+echo   [PERINGATAN] JANGAN TUTUP jendela ini agar server tetap aktif!
+echo ========================================================
 echo.
 start http://localhost:8080
 
-wsl -d Ubuntu-22.04 -- /bin/bash -c "while true; do sleep 60; done"
+echo Menampilkan log container secara realtime (Tekan Ctrl+C untuk keluar)...
+echo.
+wsl -d Ubuntu -u root -- /bin/bash -c "cd /mnt/d/Nevnev/Panpan/panel && docker compose logs -f"
+pause
+
+
