@@ -5,8 +5,8 @@ Pterodactyl Panel sudah berhasil dipasang dan sedang **berjalan aktif di Localho
 ---
 
 ## 🌐 Akses Panel
-- **URL Komputer (Localhost)**: [http://localhost:8080](http://localhost:8080)
-- **URL HP / Tablet (Wi-Fi)**: [http://192.168.1.10:8080](http://192.168.1.10:8080)
+- **URL Komputer (Localhost)**: [http://localhost:8085](http://localhost:8085)
+- **URL HP / Tablet (Wi-Fi)**: [http://192.168.1.10:8085](http://192.168.1.10:8085)
 - **Catatan Akun**: Gunakan akun dan password admin yang dibuat saat inisialisasi lokal.
 
 ---

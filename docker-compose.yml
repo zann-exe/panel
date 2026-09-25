@@ -7,8 +7,8 @@ x-common:
   panel:
     &panel-environment
     # URL panel di localhost dengan port 8080
-    APP_URL: "http://localhost:8080"
-    SANCTUM_STATEFUL_DOMAINS: "localhost:8080,127.0.0.1:8080,localhost,127.0.0.1,192.168.1.10:8080,192.168.1.10,192.168.1.2:8080,192.168.1.2"
+    APP_URL: "http://localhost:8085"
+    SANCTUM_STATEFUL_DOMAINS: "localhost:8085,127.0.0.1:8085,localhost,127.0.0.1,192.168.1.10:8085,192.168.1.10,192.168.1.2:8085,192.168.1.2"
     SESSION_SECURE_COOKIE: "false"
     RECAPTCHA_ENABLED: "false"
     # Timezone: https://www.php.net/manual/en/timezones.php (contoh: Asia/Jakarta)
@@ -47,7 +47,7 @@ services:
     image: ghcr.io/pterodactyl/panel:latest
     restart: always
     ports:
-      - "8080:80"
+      - "8085:80"
       - "8443:443"
     links:
       - database

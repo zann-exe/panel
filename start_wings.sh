@@ -4,14 +4,14 @@ cat > /etc/pterodactyl/config.yml << 'EOF'
 debug: false
 api:
   host: 0.0.0.0
-  port: 8080
+  port: 8081
   ssl:
     enabled: false
     cert: /etc/pterodactyl/cert.pem
     key: /etc/pterodactyl/key.pem
   upload_limit: 100
   token: "W1luVDhLYUQ3MDhDR2hVVE5SaXZTSGNoMVV3Y0ZLWkVleWtYUEdCdjR5MHhYQktySFFuMmtMUktSdE1NOHNPOVNJZTNXa0Uwa2VKZU51MDliaWk4NjdzenEzMUFoQm9Eb3ZWbHRvc1R1ZWs9"
-  panel_url: http://localhost:8080
+  panel_url: http://localhost:8085
 system:
   username: pterodactyl
   timezone: Asia/Jakarta

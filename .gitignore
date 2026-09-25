@@ -13,3 +13,5 @@ credentials.txt
 Thumbs.db
 .vscode/
 .idea/
+*.zip
+

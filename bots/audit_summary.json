@@ -1,0 +1,57 @@
+{
+  "AlyaChan-V2": {
+    "total_js": 20,
+    "passed": 20,
+    "errors": []
+  },
+  "ArisuMD-V2": {
+    "total_js": 29,
+    "passed": 29,
+    "errors": []
+  },
+  "ChiiMD-V2": {
+    "total_js": 79,
+    "passed": 79,
+    "errors": []
+  },
+  "Forscieno-V6": {
+    "total_js": 66,
+    "passed": 66,
+    "errors": []
+  },
+  "Gojo-Satoru-MD": {
+    "total_js": 84,
+    "passed": 84,
+    "errors": []
+  },
+  "Shikimori-MD-V2": {
+    "total_js": 540,
+    "passed": 540,
+    "errors": []
+  },
+  "Waguri-Ai-V2": {
+    "total_js": 41,
+    "passed": 41,
+    "errors": []
+  },
+  "bjir-2.0-V2": {
+    "total_js": 12,
+    "passed": 12,
+    "errors": []
+  },
+  "elainamd-V2": {
+    "total_js": 103,
+    "passed": 103,
+    "errors": []
+  },
+  "furina-V2": {
+    "total_js": 139,
+    "passed": 139,
+    "errors": []
+  },
+  "kennzy-V2": {
+    "total_js": 20,
+    "passed": 20,
+    "errors": []
+  }
+}

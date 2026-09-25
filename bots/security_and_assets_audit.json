@@ -1,0 +1,164 @@
+{
+  "AlyaChan-V2": {
+    "sessions_found": [],
+    "git_found": false,
+    "heavy_media": [],
+    "env_files": [],
+    "potential_api_keys": [
+      "Google Gemini API Key in alya.js",
+      "Google Gemini API Key in settings.js"
+    ],
+    "owners_found": [
+      "628118189945"
+    ]
+  },
+  "ArisuMD-V2": {
+    "sessions_found": [],
+    "git_found": false,
+    "heavy_media": [],
+    "env_files": [],
+    "potential_api_keys": [
+      "Google Gemini API Key in Zion.js"
+    ],
+    "owners_found": [
+      "628118189945"
+    ]
+  },
+  "ChiiMD-V2": {
+    "sessions_found": [],
+    "git_found": false,
+    "heavy_media": [],
+    "env_files": [],
+    "potential_api_keys": [],
+    "owners_found": []
+  },
+  "Forscieno-V6": {
+    "sessions_found": [],
+    "git_found": false,
+    "heavy_media": [],
+    "env_files": [
+      ".env.example"
+    ],
+    "potential_api_keys": [],
+    "owners_found": []
+  },
+  "Gojo-Satoru-MD": {
+    "sessions_found": [],
+    "git_found": false,
+    "heavy_media": [],
+    "env_files": [],
+    "potential_api_keys": [],
+    "owners_found": []
+  },
+  "Shikimori-MD-V2": {
+    "sessions_found": [],
+    "git_found": false,
+    "heavy_media": [
+      [
+        "Shikimori\\media\\mane2.jpg",
+        "1.41 MB"
+      ],
+      [
+        "Shikimori\\media\\ryo.jpg",
+        "1.01 MB"
+      ],
+      [
+        "Shikimori\\media\\tes.mp3",
+        "1.31 MB"
+      ]
+    ],
+    "env_files": [],
+    "potential_api_keys": [
+      "Google Gemini API Key in Shikimori\\plugins\\downloader-googledrive.js",
+      "Google Gemini API Key in Shikimori\\plugins\\sticker-emojimix.js"
+    ],
+    "owners_found": []
+  },
+  "Waguri-Ai-V2": {
+    "sessions_found": [],
+    "git_found": false,
+    "heavy_media": [],
+    "env_files": [],
+    "potential_api_keys": [
+      "Google Gemini API Key in config.js",
+      "Google Gemini API Key in Mane.js"
+    ],
+    "owners_found": [
+      "628118189945"
+    ]
+  },
+  "bjir-2.0-V2": {
+    "sessions_found": [],
+    "git_found": false,
+    "heavy_media": [
+      [
+        "audio.mp3",
+        "1.29 MB"
+      ]
+    ],
+    "env_files": [],
+    "potential_api_keys": [],
+    "owners_found": [
+      "628118189945"
+    ]
+  },
+  "elainamd-V2": {
+    "sessions_found": [],
+    "git_found": false,
+    "heavy_media": [
+      [
+        "media\\thumb.jpg",
+        "1.26 MB"
+      ]
+    ],
+    "env_files": [],
+    "potential_api_keys": [],
+    "owners_found": [
+      "628118189945"
+    ]
+  },
+  "furina-V2": {
+    "sessions_found": [],
+    "git_found": false,
+    "heavy_media": [
+      [
+        "furina\\Furina.js",
+        "1.82 MB"
+      ],
+      [
+        "furina\\data\\image\\yoimiya.mp4",
+        "1.51 MB"
+      ],
+      [
+        "furina\\data\\media\\jinshi.jpg",
+        "1.38 MB"
+      ],
+      [
+        "furina\\data\\media\\jinshi.mp4",
+        "5.67 MB"
+      ],
+      [
+        "furina\\data\\media\\store.jpg",
+        "1.07 MB"
+      ]
+    ],
+    "env_files": [],
+    "potential_api_keys": [],
+    "owners_found": [
+      "628118189945"
+    ]
+  },
+  "kennzy-V2": {
+    "sessions_found": [],
+    "git_found": false,
+    "heavy_media": [],
+    "env_files": [],
+    "potential_api_keys": [
+      "Google Gemini API Key in naze.js",
+      "Google Gemini API Key in settings.js"
+    ],
+    "owners_found": [
+      "628118189945"
+    ]
+  }
+}

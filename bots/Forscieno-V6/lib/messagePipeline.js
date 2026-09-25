@@ -1,0 +1,385 @@
+// ═══════════════════════════════════════════════════════════════════
+//  MESSAGEPIPELINE.JS — Pemrosesan Pesan Masuk
+//  + Auto-Read, Auto-Typing, Cooldown System, Better Logging
+// ═══════════════════════════════════════════════════════════════════
+
+import { isJidGroup } from '@whiskeysockets/baileys';
+import { handleCommand, checkMute, replyWithImage, commandExists } from '../commands/index.js';
+import { adminCommands2 } from '../commands/adminCommands2.js';
+import { checkSlowmode, checkContentLock } from '../commands/adminCommands.js';
+import { antiGB, antiLink, antiShortLink, antiSpam, antiToxic, antiFlood } from '../features/protection.js';
+import {
+    antiLinkPhishing, antiJudol, antiPinjol,
+    antiCaps, antiVirtex, antiTagSpam, checkMemberMute,
+} from '../features/protectionExtra.js';
+import { antiNsfw } from '../features/antiNsfw.js';
+import { trackMedia } from '../commands/mediaCommands.js';
+import { checkCooldown, setCooldown, cooldownMsg } from './cooldown.js';
+import { log } from './logger.js';
+import settings from '../setting.js';
+import { withTimeout, resolveSenderJid } from './utils.js';
+import { recallRealJid } from './lidMapping.js';
+import { getReplyDelayOverride } from './replyDelay.js';
+import { getGroupMetadata } from './groupMetaCache.js';
+import { isOwner, isCreator } from './roles.js';
+import { trackActivity, isMaintenanceMode } from '../commands/adminCommands6.js';
+import { isRegistered, buildWelcomeMessage } from './registry.js';
+import { markActive } from './siderTracker.js';
+import { resolveMenuShortcut } from './menuShortcut.js';
+import { handleAutoFeatures } from './autoFeatures.js';
+import { handleGojoAiChat } from './gojoAi.js';
+
+const PREFIX = settings.prefix || '.';
+
+// ─── DUPLICATE MESSAGE GUARD ─────────────────────────────────────────────
+// Baileys/WhatsApp kadang dapat mengirim event `messages.upsert` yang sama
+// lebih dari sekali (mis. saat reconnect/retry jaringan). Tanpa guard,
+// command seperti .allmenu bisa dieksekusi dua kali dan menghasilkan dua
+// balasan identik. Simpan message ID sebentar supaya satu pesan hanya
+// diproses sekali.
+const processedMessageIds = new Map();
+const MESSAGE_DEDUPE_TTL = 60_000;
+
+function isDuplicateMessage(msg) {
+    const id = msg?.key?.id;
+    if (!id) return false;
+
+    const now = Date.now();
+    const previous = processedMessageIds.get(id);
+    if (previous && now - previous < MESSAGE_DEDUPE_TTL) {
+        return true;
+    }
+
+    processedMessageIds.set(id, now);
+
+    // Bersihkan entri lama secara berkala agar Map tidak terus membesar.
+    if (processedMessageIds.size > 500) {
+        for (const [key, timestamp] of processedMessageIds) {
+            if (now - timestamp >= MESSAGE_DEDUPE_TTL) {
+                processedMessageIds.delete(key);
+            }
+        }
+    }
+    return false;
+}
+
+// ─── HELPER: Ekstrak ID dari balasan Native Flow (tombol interaktif) ──
+// Saat user mengetuk baris di menu interaktif (single_select), WhatsApp
+// TIDAK mengirim balik teks biasa. Yang masuk adalah message berjenis
+// interactiveResponseMessage, dengan payload JSON di dalam string
+// nativeFlowResponseMessage.paramsJson — bentuknya kira-kira:
+//   { "id": ".menuadmin" }
+// Fungsi ini mem-parse JSON tersebut dan mengembalikan field "id"-nya,
+// supaya bisa diperlakukan sama seperti user mengetik command lengkap secara manual.
+function extractNativeFlowId(msg) {
+    try {
+        const paramsJson = msg.message?.interactiveResponseMessage?.nativeFlowResponseMessage?.paramsJson;
+        if (!paramsJson) return '';
+        const parsed = JSON.parse(paramsJson);
+        return parsed?.id || '';
+    } catch {
+        return '';
+    }
+}
+
+// ─── HELPER: Auto-read ───────────────────────────────────────────
+async function autoRead(sock, msg) {
+    if (!settings.autoRead) return;
+    try {
+        await withTimeout(sock.readMessages([msg.key]), 10_000, 'readMessages');
+    } catch { /* ignore */ }
+}
+
+// ─── HELPER: Auto-typing ─────────────────────────────────────────
+// v3.1.2: delay dikembalikan lagi — kali ini FIXED di rentang 3-4 detik
+// (acak sedikit di antaranya, bukan angka yang sama persis tiap kali),
+// dibaca dari settings.typingDurationMin/Max di setting.js. Bot akan
+// kirim indikator "mengetik..." lalu betul-betul menunggu sebelum lanjut
+// ke balasan command.
+// .delay [detik] — override manual buat delay balasan bot, diatur
+// Owner/Creator (command-nya ada di commands/index.js, logic simpan di
+// lib/replyDelay.js). 0 = instan (skip typing indicator sekalian).
+// null = belum diatur -> pakai typingDurationMin/Max acak seperti biasa.
+async function autoTyping(sock, jid) {
+    if (!settings.autoTyping) return;
+    const override = getReplyDelayOverride();
+    if (override === 0) return; // instan — skip typing indicator sama sekali
+    try {
+        await withTimeout(sock.sendPresenceUpdate('composing', jid), 10_000, 'sendPresenceUpdate(composing)');
+        let ms;
+        if (override !== null) {
+            ms = override * 1000;
+        } else {
+            const min = settings.typingDurationMin ?? 3000;
+            const max = Math.max(min, settings.typingDurationMax ?? 4000);
+            ms = min + Math.floor(Math.random() * (max - min + 1));
+        }
+        await new Promise(r => setTimeout(r, ms));
+        await withTimeout(sock.sendPresenceUpdate('paused', jid), 10_000, 'sendPresenceUpdate(paused)');
+    } catch { /* ignore */ }
+}
+
+// ─── OWNER CHECK ─────────────────────────────────────────────────
+// (fungsi isOwner sekarang diimport dari roles.js — mendukung Creator
+// hardcoded + banyak Owner dinamis, bukan cuma satu nomor statis)
+
+// ─── MAIN PIPELINE ───────────────────────────────────────────────
+export async function processIncomingMessage(sock, msg) {
+    if (!msg.message) return;
+    if (isDuplicateMessage(msg)) return;
+
+    const jid     = msg.key.remoteJid;
+    const isGroup = isJidGroup(jid);
+    const body    =
+        msg.message?.conversation                                          ||
+        msg.message?.extendedTextMessage?.text                             ||
+        msg.message?.imageMessage?.caption                                 ||
+        msg.message?.videoMessage?.caption                                 ||
+        msg.message?.buttonsResponseMessage?.selectedButtonId              ||
+        msg.message?.listResponseMessage?.singleSelectReply?.selectedRowId ||
+        extractNativeFlowId(msg)                                           ||
+        '';
+
+    // Pesan fromMe: hanya proses kalau itu command (diawali prefix)
+    // Ini mencegah infinite loop tapi tetap izinkan owner jalankan command
+    if (msg.key.fromMe && !body.startsWith(PREFIX)) return;
+
+    // FIX BUG @lid: sebelumnya sender = msg.key.remoteJid mentah, yang bisa
+    // berupa identitas @lid (BUKAN nomor HP asli, dan bisa tidak konsisten
+    // antar pesan dari orang yang sama). Sekarang pakai resolveSenderJid()
+    // yang mencoba field nomor HP asli dari Baileys (participantPn/senderPn)
+    // dulu sebelum jatuh ke JID mentah. Lihat komentar lengkap di utils.js.
+    //
+    // FIX TAMBAHAN — self-chat (Owner/Creator chat ke nomor bot sendiri):
+    // kalau fromMe true, pesan ini SUDAH PASTI berasal dari akun yang login
+    // ke bot ini sendiri — tidak perlu (dan tidak boleh) ditebak dari
+    // remoteJid/LID sama sekali. Dua alasan:
+    //   1) Di self-chat, remoteJid = nomor bot sendiri, dan WhatsApp kadang
+    //      menyajikannya sebagai @lid (ID internal acak, BUKAN nomor HP
+    //      asli) — resolveSenderJid()/isOwner()/isCreator() bisa gagal
+    //      cocok padahal jelas itu Owner/Creator kirim ke dirinya sendiri.
+    //   2) Kalau suatu saat balasan bot ke ORANG LAIN kebetulan diawali
+    //      prefix (lolos filter fromMe di atas), remoteJid saat itu adalah
+    //      nomor orang lain itu, bukan nomor bot — resolveSenderJid() akan
+    //      salah total kalau tetap dipakai di sini.
+    // sock.user.id adalah sumber kebenaran langsung dari Baileys tentang
+    // akun yang sedang login (bukan tebakan dari isi pesan), jadi dipakai
+    // langsung setiap kali fromMe true. Device suffix ":xx" (format multi-
+    // device, mis. "6281234567890:31@s.whatsapp.net") sengaja dibuang dulu
+    // sebelum dirangkai ulang jadi JID bersih — kalau tidak, digit device-id
+    // itu ikut ke-strip jadi angka oleh normalizeNumber() di roles.js dan
+    // mengotori nomor HP asli.
+    const rawSelfId   = sock.user?.id || '';
+    const botOwnNumber = rawSelfId.split('@')[0].split(':')[0];
+    const sender = (msg.key.fromMe && botOwnNumber)
+        ? `${botOwnNumber}@s.whatsapp.net`
+        : (isGroup ? resolveSenderJid(msg, true) : resolveSenderJid(msg, false));
+
+    if (!body) return;
+
+    // Self-mode: hanya owner yang bisa pakai bot
+    if (settings.selfMode && !isOwner(sender)) return;
+
+    const num     = (sender || '').split('@')[0];
+    const chatTag = isGroup ? '[GRP]' : '[DM] ';
+
+    // Shortcut angka: kalau user baru lihat .menu lalu balas "1".."6" saja,
+    // perlakukan sama seperti mengetik command lengkapnya (mis. ".menuadmin").
+    const shortcutCmd  = resolveMenuShortcut(sender, body);
+    const effectiveBody = shortcutCmd || body;
+
+    const isCmd   = effectiveBody.startsWith(PREFIX);
+
+    // Log pesan masuk
+    if (settings.logMessages) {
+        log.msg(chatTag, num, body);
+    }
+
+    // Auto-read & auto-typing (per-chat setting, diatur via .autoread/.autotyping)
+    // FIX PERFORMA: sebelumnya di-await — pipeline nunggu readMessages()/
+    // sendPresenceUpdate() (network call ke WhatsApp) selesai dulu sebelum
+    // lanjut. Tidak ada langkah di bawah ini yang butuh hasil dari fungsi
+    // ini, jadi sekarang dilepas (fire-and-forget) — jalan di background,
+    // tidak ikut menambah waktu tunggu sebelum balasan command diproses.
+    handleAutoFeatures(sock, msg, jid).catch(() => {});
+
+    trackMedia(jid, msg);
+
+    // ── Catat aktivitas untuk fitur .sider ──────────────────────────
+    // Dicatat di SINI (sebelum proteksi/cooldown/dsb) supaya SEMUA jenis
+    // pesan grup (chat biasa ATAUPUN command) dihitung "aktif" — bukan
+    // cuma yang lolos semua filter di bawah. Tujuannya supaya member yang
+    // emang aktif chat tidak salah ke-deteksi sebagai sider gara-gara,
+    // misalnya, pesannya kena anti-spam atau lagi di-mute.
+    if (isGroup) {
+        try { markActive(jid, sender); } catch { /* ignore */ }
+    }
+
+    // ── Status admin (hanya grup) ──────────────────────────────────
+    // FIX PERFORMA: sebelumnya SELALU sock.groupMetadata(jid) fresh ke
+    // WhatsApp di SETIAP pesan grup — network round-trip ini nambah
+    // ratusan ms sampai 1 detik+ ke waktu balas bot, bahkan waktu
+    // .delay sudah diset 0 (karena ini terjadi SEBELUM autoTyping,
+    // .delay cuma ngatur bagian typing-nya saja). Sekarang pakai
+    // getGroupMetadata() dari lib/groupMetaCache.js — cache 5 menit
+    // yang SAMA dipakai Baileys sendiri, jadi kalau cache masih ada,
+    // ini nyaris instan tanpa network call sama sekali. Cache otomatis
+    // ke-refresh tiap ada event groups.update, jadi perubahan admin
+    // tetap ke-detect, cuma delay-nya maksimal beberapa menit (atau
+    // instan kalau memang ada event group update-nya).
+    let isAdmin = false;
+    if (isGroup) {
+        try {
+            const meta = await withTimeout(getGroupMetadata(sock, jid), 15_000, 'groupMetadata');
+            // FIX @lid: p.id di groupMetadata bisa @lid sementara sender sudah
+            // di-resolve ke @s.whatsapp.net — strict === selalu false → isAdmin false.
+            const participant = meta.participants.find(p => {
+                if (p.id === sender) return true;
+                if (p.id.includes('@lid')) { const r = recallRealJid(p.id); if (r && r === sender) return true; }
+                if (sender.includes('@lid')) { const r = recallRealJid(sender); if (r && r === p.id) return true; }
+                return false;
+            });
+            isAdmin = participant?.admin === 'admin' || participant?.admin === 'superadmin';
+        } catch { /* bukan admin jika metadata gagal */ }
+    }
+
+
+    // ── Proteksi grup ─────────────────────────────────────────────
+    if (isGroup) {
+        const blocked =
+            (await antiGB(sock, msg, jid, sender, body))                    ||
+            (await antiLink(sock, msg, jid, sender, body))                   ||
+            (await antiShortLink(sock, msg, jid, sender, body))              ||
+            // v3.1.0: proteksi tambahan — lihat features/protectionExtra.js
+            (await antiLinkPhishing(sock, msg, jid, sender, body, isAdmin))  ||
+            (await antiSpam(sock, msg, jid, sender))                         ||
+            (await antiFlood(sock, msg, jid, sender))                        ||
+            (await antiToxic(sock, msg, jid, sender, body))                  ||
+            (await antiJudol(sock, msg, jid, sender, body, isAdmin))         ||
+            (await antiPinjol(sock, msg, jid, sender, body, isAdmin))        ||
+            (await antiCaps(sock, msg, jid, sender, body, isAdmin))          ||
+            (await antiVirtex(sock, msg, jid, sender, body, isAdmin))        ||
+            (await antiTagSpam(sock, msg, jid, sender, isAdmin))             ||
+            (await checkMute(sock, msg, jid, sender, isAdmin))               ||
+            (await checkMemberMute(sock, msg, jid, sender, isAdmin))         ||
+            (await checkSlowmode(sock, msg, jid, sender))                    ||
+            (await checkContentLock(sock, msg, jid, sender, isAdmin))        ||
+            // v3.2.0: anti-NSFW — sengaja ditaruh PALING TERAKHIR di rantai
+            // ini, karena satu-satunya pengecekan di atas yang mungkin
+            // memanggil API eksternal (lihat features/antiNsfw.js) — kalau
+            // pesan sudah ke-blokir oleh proteksi lain yang lebih murah di
+            // atas, pengecekan NSFW tidak perlu dijalankan sama sekali.
+            (await antiNsfw(sock, msg, jid, sender, isAdmin));
+
+        if (blocked) return;
+
+        // Activity tracker (.topactive / .listinactive) — catat SETIAP
+        // pesan grup yang lolos proteksi, command maupun chat biasa.
+        try { trackActivity(jid, sender); } catch { /* ignore */ }
+
+        // Blokir user yang di-ban
+        if (isCmd && adminCommands2.isBanned(jid, sender)) return;
+
+        // Auto-reply (non-command)
+        if (!isCmd) {
+            const ar = adminCommands2.checkAutoReply(jid, body);
+            if (ar) {
+                try { await sock.sendMessage(jid, { text: ar }, { quoted: msg }); } catch {}
+            }
+        }
+    }
+
+    // ── Proses command ────────────────────────────────────────────
+    if (!isCmd) {
+        // Mode chat AI ala Gojo (.gojoai on/off) — di DM selalu boleh,
+        // di grup cuma kalau bot di-mention/di-reply. Lihat lib/gojoAi.js.
+        await handleGojoAiChat(sock, msg, jid, body, isGroup);
+        return;
+    }
+
+    const parts   = effectiveBody.slice(PREFIX.length).trim().split(/ +/);
+    const command = parts.shift().toLowerCase();
+    const args    = parts;
+
+    // ── Maintenance mode (.maintenancemode on/off) ──────────────────
+    // Kalau aktif, cuma Owner/Creator yang boleh pakai command lain di
+    // grup ini — dikecualikan command togglenya sendiri, supaya admin
+    // tetap bisa matikan lagi mode ini tanpa perlu Owner/Creator.
+    if (isGroup && command !== 'maintenancemode' && isMaintenanceMode(jid) && !isOwner(sender) && !isCreator(sender)) {
+        return;
+    }
+
+    // ── Wajib daftar (.daftar nama.umur) sebelum pakai command lain ─
+    // Owner & Creator selalu bypass (supaya tidak terkunci dari bot
+    // sendiri). Command `.daftar` sendiri HARUS selalu bisa dipanggil,
+    // atau orang baru tidak akan pernah bisa daftar sama sekali.
+    const REGISTRATION_EXEMPT = new Set(['daftar']);
+    if (!REGISTRATION_EXEMPT.has(command) && !isOwner(sender) && !isRegistered(sender)) {
+        // Pakai thumbnail settings.thumbnailDaftar di SINI juga (bukan cuma di
+        // balasan .daftar) — supaya orang yang belum daftar langsung lihat
+        // gambar saat diminta daftar, bukan cuma teks polos. replyWithImage
+        // sudah otomatis fallback ke teks biasa kalau kirim gambar gagal.
+        try {
+            await replyWithImage(sock, jid, msg, settings.thumbnailDaftar, buildWelcomeMessage(msg.pushName));
+        } catch {}
+        return;
+    }
+
+    // ── Log command ───────────────────────────────────────────────
+    if (settings.logCommands) {
+        log.cmd(num, `.${command}`, args);
+    }
+
+    // ── Cooldown check (owner bypass jika dikonfigurasi) ──────────
+    const ownerSkipCd = settings.ownerBypassCooldown && isOwner(sender);
+    if (!ownerSkipCd) {
+        const remaining = checkCooldown(sender, command);
+        if (remaining > 0) {
+            log.cooldown(num, command, (remaining / 1000).toFixed(1));
+            try {
+                await sock.sendMessage(jid, { text: cooldownMsg(command, remaining) }, { quoted: msg });
+            } catch {}
+            return;
+        }
+    }
+
+    // ── Reaksi ⏳ = "lagi diproses" ─────────────────────────────────
+    // FIX: dikirim DI SINI — paling awal setelah dipastikan command ini
+    // akan benar-benar dieksekusi (lolos cooldown) — SEBELUM autoTyping's
+    // delay 3-4 detik. Sebelumnya reaksi ini dikirim di dalam
+    // handleCommand() (commands/index.js), yaitu SETELAH autoTyping,
+    // sehingga user harus nunggu 3-4 detik dulu baru lihat emoji jam-nya
+    // muncul. Sekarang muncul instan begitu command diterima.
+    //
+    // FIX BUG: dibungkus commandExists(command) — command yang TIDAK
+    // terdaftar (typo, dsb, misal ".1 kali 2 berapa" -> command="1")
+    // sebelumnya tetap dapat reaksi ⏳ di sini, padahal handleCommand()
+    // akan return lebih awal (command tidak ada di routeMap) SEBELUM
+    // sempat kirim reaksi ✅/❌ — hasilnya ⏳ nyangkut selamanya di pesan
+    // itu. Sekarang command tak dikenal tidak dapat reaksi apapun sama
+    // sekali (konsisten dengan perilaku lama: command tak dikenal memang
+    // tidak pernah dapat balasan apapun).
+    // FIX PERFORMA: sebelumnya di-await — pipeline nunggu WhatsApp konfirmasi
+    // reaksi ⏳ terkirim dulu (network round-trip) SEBELUM mulai autoTyping
+    // & proses command-nya sendiri. Reaksi ini cuma indikator visual "lagi
+    // diproses", bukan sesuatu yang harus selesai duluan — jadi sekarang
+    // dilepas (fire-and-forget), jalan bersamaan/di background sementara
+    // command-nya langsung diproses, bukan berurutan nunggu ini kelar dulu.
+    if (commandExists(command)) {
+        sock.sendMessage(jid, { react: { text: '⏳', key: msg.key } }).catch(() => {});
+    }
+
+    // ── Typing indicator ──────────────────────────────────────────
+    await autoTyping(sock, jid);
+
+    // ── Set cooldown SEBELUM execute (mencegah double-trigger) ────
+    setCooldown(sender, command);
+
+    // ── Execute command ───────────────────────────────────────────
+    await handleCommand(
+        sock, msg, jid, sender,
+        command, args,
+        isGroup, body,
+        isGroup ? isAdmin : undefined
+    );
+}

@@ -12,11 +12,11 @@ wsl -d Ubuntu -u root -- /bin/bash -c "cd /mnt/d/Nevnev/Panpan/panel && docker c
 
 echo.
 echo ========================================================
-echo   Panel aktif di: http://localhost:8080
+echo   Panel aktif di: http://localhost:8085
 echo   [PERINGATAN] JANGAN TUTUP jendela ini agar server tetap aktif!
 echo ========================================================
 echo.
-start http://localhost:8080
+start http://localhost:8085
 
 echo Menampilkan log container secara realtime (Tekan Ctrl+C untuk keluar)...
 echo.
