@@ -41,6 +41,14 @@ exit /b 1
 
 :SUCCESS
 echo.
+echo Menunggu web server Pterodactyl siap...
+:WAIT_HTTP_NATIVE
+curl.exe -s -o nul -w "%%{http_code}" http://localhost:8085 | findstr "200 302" >nul 2>&1
+if !errorlevel! neq 0 (
+    timeout /t 2 /nobreak >nul
+    goto :WAIT_HTTP_NATIVE
+)
+
 echo ========================================================
 echo   Panel aktif di: http://localhost:8085
 echo   [PERINGATAN] JANGAN TUTUP jendela ini agar server tetap aktif!
@@ -56,6 +64,14 @@ exit /b 0
 
 :SUCCESS_WSL
 echo.
+echo Menunggu web server Pterodactyl siap...
+:WAIT_HTTP_WSL
+curl.exe -s -o nul -w "%%{http_code}" http://localhost:8085 | findstr "200 302" >nul 2>&1
+if !errorlevel! neq 0 (
+    timeout /t 2 /nobreak >nul
+    goto :WAIT_HTTP_WSL
+)
+
 echo ========================================================
 echo   Panel aktif di: http://localhost:8085
 echo   [PERINGATAN] JANGAN TUTUP jendela ini agar server tetap aktif!
