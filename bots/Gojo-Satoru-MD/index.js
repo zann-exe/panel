@@ -407,35 +407,11 @@ async function startBot() {
         // Inject contextInfo channel forwarding ke setiap pesan keluar.
         // Nilai yang benar (hasil riset/eksperimen): forwardingScore 9, serverMessageId 127.
         // -1 dan 999 menyebabkan proto validation error di Baileys — itulah
-        // kenapa .menu dan semua command sebelumnya error '⚠️ Terjadi kesalahan'.
-        // FIX: reaksi emoji (content.react) DIKECUALIKAN dari injeksi ini —
-        // reaksi punya struktur protokol yang minim dan tidak butuh/menerima
-        // contextInfo/branding forward sama sekali. Tanpa pengecualian ini,
-        // setiap reaksi (sekarang terkirim di TIAP command — lihat reactTo()
-        // di commands/index.js) akan selalu gagal di percobaan pertama lalu
-        // baru berhasil di percobaan kedua (fallback catch di bawah) — bukan
-        // error fatal, tapi buang satu round-trip API sia-sia setiap kali.
-        let withCtx = content;
-        if (content && typeof content === 'object' && !content.contextInfo && !content.react) {
-            withCtx = {
-                ...content,
-                contextInfo: {
-                    isForwarded: true,
-                    forwardingScore: 9,
-                    forwardedNewsletterMessageInfo: {
-                        newsletterJid:  CHANNEL_JID,
-                        newsletterName: CHANNEL_NAME,
-                        serverMessageId: 127
-                    }
-                }
-            };
-        }
         try {
-            return await _origSend(jid, withCtx, options);
-        } catch {
-            // Kalau contextInfo bikin error, kirim tanpa contextInfo
-            // supaya pesan tetap terkirim.
             return await _origSend(jid, content, options);
+        } catch (e) {
+            console.error('[Gojo-Satoru-MD] sendMessage error:', e.message);
+            throw e;
         }
     };
 

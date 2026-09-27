@@ -21,17 +21,28 @@ Container yang berjalan:
 
 ## ⚙️ Perintah Berguna
 
+### Menjalankan Panel (Cukup jalankan start.bat):
+```cmd
+start.bat
+```
+
 ### Mematikan Container:
 ```powershell
-wsl -d Ubuntu-22.04 -- /bin/bash -c "cd /mnt/d/Nev/panpan && docker compose down"
+docker compose down
+# atau jika via WSL:
+wsl -u root docker compose down
 ```
 
 ### Menjalankan Kembali Container:
 ```powershell
-wsl -d Ubuntu-22.04 -- /bin/bash -c "cd /mnt/d/Nev/panpan && docker compose up -d"
+docker compose up -d
+# atau jika via WSL:
+wsl -u root docker compose up -d
 ```
 
 ### Membuat Akun Pengguna / Admin Baru Tambahan:
 ```powershell
-wsl -d Ubuntu-22.04 -- /bin/bash -c "cd /mnt/d/Nev/panpan && docker compose exec panel php artisan p:user:make"
+docker compose exec panel php artisan p:user:make
+# atau jika via WSL:
+wsl -u root docker compose exec panel php artisan p:user:make
 ```

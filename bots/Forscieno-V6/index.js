@@ -27,6 +27,7 @@ import { log } from './lib/logger.js';
 import { getCreatorInfo } from './lib/roles.js';
 import { CHANNEL_JID, CHANNEL_NAME } from './lib/channelGuard.js';
 import settings from './setting.js';
+import qrcode from 'qrcode-terminal';
 
 // FIX: bot kerasa delay pas trafik lagi rame — ternyata BUKAN dari
 // baileysLogger di bawah (itu sudah 'silent'). Baris "Failed to decrypt
@@ -447,38 +448,16 @@ async function startBot() {
     // otomatis kena tanpa harus ubah satu per satu di tiap file.
     const _origSend = sock.sendMessage.bind(sock);
     sock.sendMessage = async (jid, content, options = {}) => {
-        // Inject contextInfo channel forwarding ke setiap pesan keluar.
-        // Nilai yang benar (hasil riset/eksperimen): forwardingScore 9, serverMessageId 127.
-        // -1 dan 999 menyebabkan proto validation error di Baileys — itulah
-        // kenapa .menu dan semua command sebelumnya error '⚠️ Terjadi kesalahan'.
-        // FIX: reaksi emoji (content.react) DIKECUALIKAN dari injeksi ini —
-        // reaksi punya struktur protokol yang minim dan tidak butuh/menerima
-        // contextInfo/branding forward sama sekali. Tanpa pengecualian ini,
-        // setiap reaksi (sekarang terkirim di TIAP command — lihat reactTo()
-        // di commands/index.js) akan selalu gagal di percobaan pertama lalu
-        // baru berhasil di percobaan kedua (fallback catch di bawah) — bukan
-        // error fatal, tapi buang satu round-trip API sia-sia setiap kali.
-        let withCtx = content;
-        if (content && typeof content === 'object' && !content.contextInfo && !content.react) {
-            withCtx = {
-                ...content,
-                contextInfo: {
-                    isForwarded: true,
-                    forwardingScore: 9,
-                    forwardedNewsletterMessageInfo: {
-                        newsletterJid:  CHANNEL_JID,
-                        newsletterName: CHANNEL_NAME,
-                        serverMessageId: 127
-                    }
-                }
-            };
-        }
         try {
-            return await _origSend(jid, withCtx, options);
-        } catch {
-            // Kalau contextInfo bikin error, kirim tanpa contextInfo
-            // supaya pesan tetap terkirim.
             return await _origSend(jid, content, options);
+        } catch (err) {
+            log.error(`sendMessage error: ${err?.message || err}`);
+            if (content && typeof content === 'object' && content.contextInfo) {
+                const cleanContent = { ...content };
+                delete cleanContent.contextInfo;
+                return await _origSend(jid, cleanContent, options).catch(() => {});
+            }
+            return null;
         }
     };
 
@@ -748,6 +727,21 @@ async function startBot() {
     // - show the underlying Baileys/WS/HTTP error details
     // - request pairing before connection === 'open'
     if (!state.creds.registered) {
+        const USE_QR = process.env.USE_QR === 'true' || process.env.MODE_PAIRING === 'qr' || process.argv.includes('--qr') || (process.argv.includes('--pairing-code') ? false : (settings.useQR ?? false));
+
+        if (USE_QR) {
+            log.info('📷 Mode Login: Scan Kode QR (Terminal QR)');
+            log.info('📲 Silakan buka WhatsApp di HP → Setelan → Perangkat Tertaut → Tautkan Perangkat → Scan Kode QR di bawah:');
+            sock.ev.on('connection.update', ({ qr }) => {
+                if (qr) {
+                    console.log('\n');
+                    qrcode.generate(qr, { small: true });
+                    console.log('📌 Scan Kode QR di atas menggunakan kamera WhatsApp di HP Anda.\n');
+                }
+            });
+            return;
+        }
+
         log.info(`📱 Target pairing: +${NOMOR_HP}`);
         log.info('🔗 Mode login: WhatsApp Pairing Code (real Web session)');
         log.info(`⏱️ Batas tunggu pairing code: ${(PAIRING_TIMEOUT_MS / 1000).toFixed(0)} detik`);

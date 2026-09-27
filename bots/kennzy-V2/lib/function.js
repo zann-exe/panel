@@ -281,8 +281,10 @@ function assertInstalled(cmd, name, code) {
 	try {
 		execSync(cmd, { stdio: 'ignore' });
 	} catch (e) {
-		console.error(chalk.redBright(`❌  ${name} is not installed or not in PATH.`) +`\nPlease install it first and run the script again.\n`);
-		process.exit(code);
+		console.error(chalk.yellow(`⚠️  ${name} is not installed or not in PATH (some media features may be limited).`));
+		if (code !== 0) {
+			process.exit(code);
+		}
 	}
 }
 

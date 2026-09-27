@@ -14,4 +14,8 @@ Thumbs.db
 .vscode/
 .idea/
 *.zip
+*.bak
+node_modules/
+session/
+sessions/
 

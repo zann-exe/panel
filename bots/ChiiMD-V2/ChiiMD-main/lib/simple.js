@@ -4,7 +4,8 @@ import util from 'util';
 import { fileURLToPath } from 'url';
 import chalk from 'chalk';
 import PhoneNumber from 'awesome-phonenumber';
-import { fileTypeFromBuffer } from 'file-type';
+import fileType from 'file-type';
+const fileTypeFromBuffer = fileType.fromBuffer || fileType.fileTypeFromBuffer || (async (b) => await fileType(b));
 
 import store from './store.js';
 import { toAudio } from './converter.js';

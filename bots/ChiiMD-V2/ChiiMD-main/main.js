@@ -85,9 +85,8 @@ const connectionOptions = {
 global.conn = makeWASocket(connectionOptions);
 
 if (fs.existsSync('./sessions/creds.json') && !conn.authState.creds.registered) {
-	console.log(chalk.yellow('-- WARNING: creds.json is broken, please delete it first --'));
-	//fs.rmSync('./sessions', { recursive: true, force: true })
-	process.exit(0);
+	console.log(chalk.yellow('-- WARNING: creds.json is not registered, auto cleaning session...'));
+	fs.rmSync('./sessions', { recursive: true, force: true });
 }
 
 if (!conn.authState.creds.registered) {
